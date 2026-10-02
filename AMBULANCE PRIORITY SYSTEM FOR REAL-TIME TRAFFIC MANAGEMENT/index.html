@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ambulance Priority System - IoT Monitoring & Traffic Management</title>
+  <meta name="description" content="Automated emergency vehicle detection, direction tracking, and ESP32 IoT signal preemption dashboard connected to Firebase database.">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React 18 & React DOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel Standalone for JSX compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase v10 SDK modular CDNs -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-analytics.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBQHJK04S4TyGblQMtZpuynP4uPOBJbxYo",
+      authDomain: "ambulance-detection-b47d5.firebaseapp.com",
+      databaseURL: "https://ambulance-detection-b47d5-default-rtdb.firebaseio.com",
+      projectId: "ambulance-detection-b47d5",
+      storageBucket: "ambulance-detection-b47d5.firebasestorage.app",
+      messagingSenderId: "144491627325",
+      appId: "1:144491627325:web:776578f4c34e9a23783b54",
+      measurementId: "G-0FKMXM9ZP2"
+    };
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+      window.firebaseApp = app;
+      window.firebaseDb = db;
+      window.firebaseRef = ref;
+      window.firebaseSet = set;
+      window.firebaseOnValue = onValue;
+      window.firebaseStatus = 'CONNECTED';
+      console.log("🔥 Firebase initialized cleanly for project: ambulance-detection-b47d5");
+    } catch (e) {
+      console.warn("Firebase init error:", e);
+      window.firebaseStatus = 'ERROR';
+    }
+  </script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    @keyframes pulse-red {
+      0%, 100% { box-shadow: 0 0 15px rgba(255, 23, 68, 0.7), 0 0 30px rgba(255, 23, 68, 0.4); transform: scale(1); }
+      50% { box-shadow: 0 0 25px rgba(255, 23, 68, 1), 0 0 50px rgba(255, 23, 68, 0.8); transform: scale(1.03); }
+    }
+
+    @keyframes pulse-green {
+      0%, 100% { box-shadow: 0 0 15px rgba(0, 230, 118, 0.7), 0 0 30px rgba(0, 230, 118, 0.4); }
+      50% { box-shadow: 0 0 25px rgba(0, 230, 118, 1), 0 0 55px rgba(0, 230, 118, 0.8); }
+    }
+
+    @keyframes wave-expand {
+      0% { transform: scale(0.8); opacity: 0.8; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    @keyframes siren-blue-red {
+      0%, 49% { background-color: rgba(239, 68, 68, 0.35); border-color: rgba(239, 68, 68, 0.9); }
+      50%, 100% { background-color: rgba(59, 130, 246, 0.35); border-color: rgba(59, 130, 246, 0.9); }
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, sans-serif;
+      background-color: #060a12;
+      color: #f8fafc;
+      min-height: 100vh;
+    }
+
+    h1, h2, h3, h4, .font-display {
+      font-family: 'Outfit', system-ui, sans-serif;
+    }
+
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+    }
+
+    .glass-panel-glow {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4), 0 0 20px rgba(0, 229, 255, 0.12);
+    }
+
+    .glass-panel-alert {
+      background: rgba(28, 10, 18, 0.88);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 23, 68, 0.4);
+      box-shadow: 0 0 30px rgba(255, 23, 68, 0.2);
+    }
+
+    .signal-green {
+      background-color: #00E676;
+      box-shadow: 0 0 18px #00E676, 0 0 35px rgba(0, 230, 118, 0.6);
+    }
+
+    .signal-pulse-green {
+      animation: pulse-green 1.5s infinite ease-in-out;
+    }
+
+    .siren-active-bar {
+      animation: siren-blue-red 0.6s infinite alternate;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="bg-[#060a12] text-slate-100 antialiased selection:bg-cyan-500 selection:text-slate-950">
+  <div id="root"></div>
+
+  <!-- Main React Application Script -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Web Audio Synthesizer Class
+    class WebAudioSiren {
+      constructor() {
+        this.ctx = null;
+        this.osc = null;
+        this.gain = null;
+        this.isPlaying = false;
+        this.interval = null;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) this.ctx = new AudioContext();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      }
+
+      toggleSiren(active) {
+        this.init();
+        if (!this.ctx) return;
+        if (!active) { this.stop(); return; }
+        if (this.isPlaying) return;
+
+        this.isPlaying = true;
+        try {
+          this.gain = this.ctx.createGain();
+          this.gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+          this.gain.connect(this.ctx.destination);
+
+          this.osc = this.ctx.createOscillator();
+          this.osc.type = 'sawtooth';
+          this.osc.connect(this.gain);
+          this.osc.start();
+
+          let toggle = false;
+          const sweep = () => {
+            if (!this.isPlaying || !this.osc) return;
+            const now = this.ctx.currentTime;
+            this.osc.frequency.cancelScheduledValues(now);
+            this.osc.frequency.setValueAtTime(toggle ? 650 : 1000, now);
+            this.osc.frequency.linearRampToValueAtTime(toggle ? 1000 : 650, now + 0.8);
+            toggle = !toggle;
+          };
+          sweep();
+          this.interval = setInterval(sweep, 800);
+        } catch(e) {}
+      }
+
+      stop() {
+        this.isPlaying = false;
+        if (this.interval) { clearInterval(this.interval); this.interval = null; }
+        if (this.osc) {
+          try { this.osc.stop(); this.osc.disconnect(); } catch(e){}
+          this.osc = null;
+        }
+      }
+
+      playChime() {
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.33, now);
+          osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.4);
+        } catch(e){}
+      }
+    }
+
+    const audioEngine = new WebAudioSiren();
+
+    const ROUTE_WAYPOINTS = [
+      { x: 100, y: 150 },
+      { x: 220, y: 150 },
+      { x: 460, y: 150 },
+      { x: 460, y: 350 },
+      { x: 460, y: 550 },
+      { x: 680, y: 550 }
+    ];
+
+    const INITIAL_JUNCTIONS = [
+      { id: 1, name: 'Junction 1 (Metro North)', x: 220, y: 150, currentSignal: 'RED', countdown: 12, preempted: false, geofenceRadius: 90, queueCount: 14, density: 68 },
+      { id: 2, name: 'Junction 2 (Central Ave)', x: 460, y: 150, currentSignal: 'YELLOW', countdown: 3, preempted: false, geofenceRadius: 90, queueCount: 22, density: 84 },
+      { id: 3, name: 'Junction 3 (Broadway Cross)', x: 460, y: 350, currentSignal: 'RED', countdown: 18, preempted: false, geofenceRadius: 90, queueCount: 18, density: 72 },
+      { id: 4, name: 'Junction 4 (Hospital Way)', x: 460, y: 550, currentSignal: 'GREEN', countdown: 24, preempted: false, geofenceRadius: 90, queueCount: 8, density: 35 },
+      { id: 5, name: 'Junction 5 (East Parkway)', x: 680, y: 150, currentSignal: 'RED', countdown: 15, preempted: false, geofenceRadius: 90, queueCount: 11, density: 45 },
+      { id: 6, name: 'Junction 6 (South Loop)', x: 220, y: 350, currentSignal: 'GREEN', countdown: 20, preempted: false, geofenceRadius: 90, queueCount: 16, density: 55 }
+    ];
+
+    function CanvasCityMap({ junctions, ambulance, routes }) {
+      const canvasRef = useRef(null);
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        let animId;
+
+        const render = () => {
+          ctx.fillStyle = '#060a14';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+          ctx.lineWidth = 1;
+          for (let x = 0; x < canvas.width; x += 40) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+          }
+          for (let y = 0; y < canvas.height; y += 40) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+          }
+
+          const mainRoads = [
+            { from: { x: 100, y: 150 }, to: { x: 750, y: 150 } },
+            { from: { x: 100, y: 350 }, to: { x: 750, y: 350 } },
+            { from: { x: 100, y: 550 }, to: { x: 750, y: 550 } },
+            { from: { x: 220, y: 80 }, to: { x: 220, y: 620 } },
+            { from: { x: 460, y: 80 }, to: { x: 460, y: 620 } },
+            { from: { x: 680, y: 80 }, to: { x: 680, y: 620 } }
+          ];
+
+          mainRoads.forEach(road => {
+            ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 36;
+            ctx.beginPath(); ctx.moveTo(road.from.x, road.from.y); ctx.lineTo(road.to.x, road.to.y); ctx.stroke();
+            ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 30;
+            ctx.beginPath(); ctx.moveTo(road.from.x, road.from.y); ctx.lineTo(road.to.x, road.to.y); ctx.stroke();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; ctx.lineWidth = 2;
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath(); ctx.moveTo(road.from.x, road.from.y); ctx.lineTo(road.to.x, road.to.y); ctx.stroke();
+            ctx.setLineDash([]);
+          });
+
+          if (routes && routes.length > 1) {
+            ctx.beginPath();
+            ctx.moveTo(routes[0].x, routes[0].y);
+            for (let i = 1; i < routes.length; i++) ctx.lineTo(routes[i].x, routes[i].y);
+            ctx.strokeStyle = 'rgba(0, 230, 118, 0.4)'; ctx.lineWidth = 14;
+            ctx.shadowColor = '#00E676'; ctx.shadowBlur = 15;
+            ctx.stroke();
+            ctx.strokeStyle = '#00E676'; ctx.lineWidth = 4; ctx.stroke();
+            ctx.shadowBlur = 0;
+          }
+
+          junctions.forEach(j => {
+            const isPreemption = j.preempted;
+            ctx.beginPath();
+            ctx.arc(j.x, j.y, j.geofenceRadius, 0, Math.PI * 2);
+            ctx.fillStyle = isPreemption ? 'rgba(0, 230, 118, 0.06)' : 'rgba(59, 130, 246, 0.03)';
+            ctx.fill();
+            ctx.strokeStyle = isPreemption ? '#00E676' : 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = isPreemption ? 2 : 1;
+            if (isPreemption) ctx.setLineDash([6, 6]);
+            ctx.stroke(); ctx.setLineDash([]);
+
+            ctx.fillStyle = isPreemption ? '#064e3b' : '#1e293b';
+            ctx.strokeStyle = isPreemption ? '#00E676' : '#334155';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.roundRect(j.x - 20, j.y - 20, 40, 40, 8); ctx.fill(); ctx.stroke();
+
+            let signalColor = '#00E676';
+            if (!j.preempted) {
+              if (j.currentSignal === 'RED') signalColor = '#FF1744';
+              else if (j.currentSignal === 'YELLOW') signalColor = '#FFC400';
+            }
+            ctx.beginPath(); ctx.arc(j.x, j.y, 9, 0, Math.PI * 2);
+            ctx.fillStyle = signalColor; ctx.shadowColor = signalColor; ctx.shadowBlur = j.preempted ? 20 : 10;
+            ctx.fill(); ctx.shadowBlur = 0;
+
+            ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 11px Outfit, sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(j.name, j.x, j.y - 26);
+            ctx.font = '10px JetBrains Mono, monospace';
+            ctx.fillStyle = j.preempted ? '#00E676' : '#94a3b8';
+            ctx.fillText(j.preempted ? `⚡ GREEN CORRIDOR (${j.countdown}s)` : `${j.currentSignal} • ${j.countdown}s`, j.x, j.y + 32);
+          });
+
+          ctx.fillStyle = '#881337';
+          ctx.beginPath(); ctx.arc(680, 550, 22, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#FF1744'; ctx.lineWidth = 3; ctx.shadowColor = '#FF1744'; ctx.shadowBlur = 15; ctx.stroke(); ctx.shadowBlur = 0;
+          ctx.fillStyle = '#ffffff'; ctx.font = '900 16px Outfit'; ctx.textAlign = 'center'; ctx.fillText('✚', 680, 555);
+          ctx.font = 'bold 11px Outfit'; ctx.fillStyle = '#f43f5e'; ctx.fillText('CITY GENERAL ER', 680, 586);
+
+          if (ambulance && ambulance.x) {
+            const ax = ambulance.x, ay = ambulance.y;
+            if (ambulance.sirenActive) {
+              const pulseSize = (Date.now() % 1500) / 1500 * 50 + 20;
+              ctx.beginPath(); ctx.arc(ax, ay, pulseSize, 0, Math.PI * 2);
+              ctx.strokeStyle = (Math.floor(Date.now() / 250) % 2 === 0) ? 'rgba(255, 23, 68, 0.6)' : 'rgba(0, 229, 255, 0.6)';
+              ctx.lineWidth = 2; ctx.stroke();
+            }
+
+            ctx.fillStyle = '#dc2626'; ctx.shadowColor = '#dc2626'; ctx.shadowBlur = 20;
+            ctx.beginPath(); ctx.arc(ax, ay, 14, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffffff'; ctx.font = 'bold 12px Inter'; ctx.textAlign = 'center'; ctx.fillText('🚑', ax, ay + 4);
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.9)'; ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.roundRect(ax + 18, ay - 24, 120, 46, 6); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#00E5FF'; ctx.font = 'bold 10px Outfit'; ctx.textAlign = 'left';
+            ctx.fillText(ambulance.id || 'AMB-101 (CODE 3)', ax + 24, ay - 10);
+            ctx.fillStyle = '#f8fafc'; ctx.font = '10px JetBrains Mono';
+            ctx.fillText(`${ambulance.speed} km/h • ${ambulance.status}`, ax + 24, ay + 4);
+            ctx.fillStyle = ambulance.geofenceTriggered ? '#00E676' : '#94a3b8';
+            ctx.fillText(ambulance.geofenceTriggered ? 'PREEMPTION ACTIVE' : 'GREEN WAVE EN ROUTE', ax + 24, ay + 17);
+          }
+
+          animId = requestAnimationFrame(render);
+        };
+        render();
+        return () => cancelAnimationFrame(animId);
+      }, [junctions, ambulance, routes]);
+
+      return (
+        <div className="relative w-full h-[580px] glass-panel p-2 overflow-hidden flex flex-col">
+          <div className="absolute top-4 left-4 z-10 flex items-center gap-3 glass-panel px-4 py-2 text-xs">
+            <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping inline-block"></span>
+              LIVE GEOFENCE SIMULATION
+            </div>
+            <div className="h-4 w-px bg-slate-700"></div>
+            <div className="text-slate-300">Geofence Threshold: <span className="text-cyan-400 font-mono">250m</span></div>
+          </div>
+          <canvas ref={canvasRef} width={840} height={560} className="w-full h-full rounded-xl" />
+        </div>
+      );
+    }
+
+    // App Component with Realtime Firebase IoT Status Listener
+    function App() {
+      const [activeTab, setActiveTab] = useState('iot');
+      const [junctions, setJunctions] = useState(INITIAL_JUNCTIONS);
+      const [isSimulating, setIsSimulating] = useState(false);
+      const [simSpeed, setSimSpeed] = useState(1);
+
+      // Realtime IoT Status State (Synced with Firebase /iot/system_status)
+      const [iotStatus, setIotStatus] = useState({
+        ambulance_detected: true,
+        direction: 'EAST',
+        confidence: 94.5,
+        traffic_mode: 'PRIORITY PREEMPTION MODE',
+        active_green_signal: 'JUNCTION EAST GREEN',
+        esp32_status: 'ONLINE (ESP32-WROOM-32)',
+        timestamp: new Date().toLocaleString()
+      });
+
+      const [ambulance, setAmbulance] = useState({
+        id: 'AMB-101', x: 100, y: 150, waypointIndex: 0, speed: 0, sirenActive: false, priorityLevel: 'CODE 3', geofenceTriggered: false, status: 'DEPOT STANDBY', etaSeconds: 140
+      });
+
+      // Firebase Realtime Listener for /iot/system_status
+      useEffect(() => {
+        if (window.firebaseDb && window.firebaseRef && window.firebaseOnValue) {
+          try {
+            const iotRef = window.firebaseRef(window.firebaseDb, 'iot/system_status');
+            window.firebaseOnValue(iotRef, (snapshot) => {
+              const data = snapshot.val();
+              if (data) setIotStatus(data);
+            });
+          } catch(e) {}
+        }
+      }, []);
+
+      const handleTogglePreemption = (id) => {
+        setJunctions(prev => prev.map(j => {
+          if (j.id === id) {
+            const next = !j.preempted;
+            if (next) audioEngine.playChime();
+            return { ...j, preempted: next, countdown: next ? 35 : 15 };
+          }
+          return j;
+        }));
+      };
+
+      const handleStartSim = () => {
+        if (!isSimulating) {
+          setIsSimulating(true);
+          audioEngine.toggleSiren(true);
+          setAmbulance(prev => ({ ...prev, sirenActive: true, status: 'EN ROUTE' }));
+        } else {
+          setIsSimulating(false);
+          audioEngine.toggleSiren(false);
+          setAmbulance(prev => ({ ...prev, sirenActive: false, status: 'PAUSED' }));
+        }
+      };
+
+      const handleResetSim = () => {
+        setIsSimulating(false);
+        audioEngine.toggleSiren(false);
+        setJunctions(INITIAL_JUNCTIONS);
+        setAmbulance({ id: 'AMB-101', x: 100, y: 150, waypointIndex: 0, speed: 0, sirenActive: false, priorityLevel: 'CODE 3', geofenceTriggered: false, status: 'DEPOT STANDBY', etaSeconds: 140 });
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* Header */}
+          <header className="sticky top-0 z-50 glass-panel-glow px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-red-600 text-white font-bold font-display text-xl shadow-lg shadow-red-500/30">⚡</div>
+              <div>
+                <h1 className="text-lg font-bold font-display text-white flex items-center gap-2">
+                  AMBULANCE PRIORITY SYSTEM 
+                  <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono border border-emerald-500/30 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    FIREBASE IOT MONITOR
+                  </span>
+                </h1>
+                <p className="text-[11px] text-slate-400">
+                  Project: <strong className="text-cyan-400 font-mono">ambulance-detection-b47d5</strong> • BTech Major Project
+                </p>
+              </div>
+            </div>
+
+            {/* Navigation Tabs */}
+            <nav className="flex items-center gap-1.5 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800">
+              {['iot', 'simulation', 'tmc', 'driver', 'er'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
+                    activeTab === tab ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {tab === 'iot' ? '📡 IoT Monitor' : tab === 'simulation' ? 'Live Map' : tab === 'tmc' ? 'TMC Command' : tab === 'driver' ? 'Driver HUD' : 'Hospital ER'}
+                </button>
+              ))}
+            </nav>
+
+            <div className="flex items-center gap-3">
+              <button onClick={handleStartSim} className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all shadow-lg ${isSimulating ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500 text-slate-950'}`}>
+                {isSimulating ? 'PAUSE TRANSIT' : 'DISPATCH AMBULANCE'}
+              </button>
+            </div>
+          </header>
+
+          {/* Main Dashboard Views */}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+            
+            {/* 1. IoT Monitoring Dashboard View (7 System Metrics) */}
+            {activeTab === 'iot' && (
+              <div className="space-y-6">
+                {/* Header Alert Banner */}
+                <div className={`glass-panel p-6 border transition-all ${
+                  iotStatus.ambulance_detected ? 'glass-panel-alert border-red-500/50' : 'border-emerald-500/30'
+                }`}>
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div>
+                      <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
+                        BTECH MAJOR PROJECT • IOT SYSTEM MONITOR
+                      </div>
+                      <div className="text-2xl font-bold font-display text-white mt-0.5">
+                        {iotStatus.ambulance_detected ? '🚨 EMERGENCY VEHICLE DETECTED INBOUND' : '🟢 NORMAL TRAFFIC SURVEILLANCE'}
+                      </div>
+                      <div className="text-xs text-slate-300 mt-1 flex items-center gap-3">
+                        <span>Firebase Realtime DB: <strong className="text-cyan-400 font-mono">ambulance-detection-b47d5</strong></span>
+                        <span>•</span>
+                        <span>Hardware: <strong className="text-emerald-400 font-mono">{iotStatus.esp32_status || 'ONLINE (ESP32)'}</strong></span>
+                      </div>
+                    </div>
+
+                    <div className="glass-panel px-4 py-2 text-right bg-slate-900/80 border-slate-700">
+                      <div className="text-[10px] text-slate-400 font-mono uppercase">7. LAST SYNC TIMESTAMP</div>
+                      <div className="text-xs font-bold font-mono text-cyan-400 mt-0.5">{iotStatus.timestamp}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 7 Required Metric Display Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  
+                  {/* Metric 1: Detection Status */}
+                  <div className={`glass-panel p-5 border ${iotStatus.ambulance_detected ? 'border-red-500/40 bg-red-950/20' : 'border-slate-800'}`}>
+                    <div className="text-xs text-slate-400 font-mono uppercase mb-2">1. AMBULANCE STATUS</div>
+                    <div className={`text-2xl font-black font-display ${iotStatus.ambulance_detected ? 'text-red-400' : 'text-emerald-400'}`}>
+                      {iotStatus.ambulance_detected ? 'AMBULANCE DETECTED' : 'NOT DETECTED'}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-2">
+                      YOLOv8 Neural Network State
+                    </div>
+                  </div>
+
+                  {/* Metric 2: Ambulance Direction */}
+                  <div className="glass-panel p-5 border-cyan-500/30">
+                    <div className="text-xs text-cyan-400 font-mono uppercase mb-2">2. AMBULANCE DIRECTION</div>
+                    <div className="text-3xl font-black font-display text-cyan-400 font-mono">
+                      {iotStatus.direction || 'EAST'}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-2">
+                      Junction Sector: <strong className="text-white">{iotStatus.direction || 'EAST'} APPROACH</strong>
+                    </div>
+                  </div>
+
+                  {/* Metric 3: Detection Confidence */}
+                  <div className="glass-panel p-5">
+                    <div className="text-xs text-emerald-400 font-mono uppercase mb-2">3. DETECTION CONFIDENCE</div>
+                    <div className="text-3xl font-black font-display text-emerald-400 font-mono">
+                      {iotStatus.confidence ? iotStatus.confidence.toFixed(1) : '94.5'}%
+                    </div>
+                    <div className="text-xs text-slate-400 mt-2">
+                      Accuracy Confidence Rating
+                    </div>
+                  </div>
+
+                  {/* Metric 4: Current Traffic Mode */}
+                  <div className="glass-panel p-5">
+                    <div className="text-xs text-amber-400 font-mono uppercase mb-2">4. CURRENT TRAFFIC MODE</div>
+                    <div className={`text-xl font-bold font-display ${iotStatus.ambulance_detected ? 'text-amber-400' : 'text-slate-200'}`}>
+                      {iotStatus.traffic_mode || (iotStatus.ambulance_detected ? 'PRIORITY PREEMPTION MODE' : 'NORMAL CYCLIC MODE')}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-2">
+                      Signal Algorithm Phasing
+                    </div>
+                  </div>
+
+                  {/* Metric 5: Active Green Signal */}
+                  <div className="glass-panel p-5 border-emerald-500/30">
+                    <div className="text-xs text-emerald-400 font-mono uppercase mb-2">5. ACTIVE GREEN SIGNAL</div>
+                    <div className="text-xl font-bold font-display text-emerald-400 flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full signal-green signal-pulse-green inline-block"></span>
+                      {iotStatus.active_green_signal || `JUNCTION ${iotStatus.direction || 'EAST'} GREEN`}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-2">
+                      Cross-traffic signals set to RED
+                    </div>
+                  </div>
+
+                  {/* Metric 6: ESP32 Connection Status */}
+                  <div className="glass-panel p-5">
+                    <div className="text-xs text-cyan-400 font-mono uppercase mb-2">6. ESP32 CONNECTION STATUS</div>
+                    <div className="text-lg font-bold font-display text-white font-mono flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping inline-block"></span>
+                      {iotStatus.esp32_status || 'ONLINE (ESP32-WROOM-32)'}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-2">
+                      Microcontroller Relay Interface
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* 2. Simulation Map View */}
+            {activeTab === 'simulation' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                  <CanvasCityMap junctions={junctions} ambulance={ambulance} routes={ROUTE_WAYPOINTS} />
+                </div>
+                <div className="glass-panel p-5 space-y-4">
+                  <div className="text-xs text-slate-400">TELEMETRY PANEL</div>
+                  <div className="text-xl font-bold text-white">AMB-101 EN ROUTE</div>
+                  <button onClick={handleResetSim} className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold">RESET SIMULATION</button>
+                </div>
+              </div>
+            )}
+
+            {/* 3. TMC View */}
+            {activeTab === 'tmc' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {junctions.map(j => (
+                  <div key={j.id} className="glass-panel p-4 border border-slate-800">
+                    <div className="font-bold text-sm text-white">{j.name}</div>
+                    <div className="text-xs text-slate-400 mt-1">Status: <strong className="text-emerald-400">{j.preempted ? 'PREEMPTED GREEN' : j.currentSignal}</strong></div>
+                    <button onClick={() => handleTogglePreemption(j.id)} className="w-full py-2 mt-3 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      TOGGLE GREEN CORRIDOR
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 4. Driver View */}
+            {activeTab === 'driver' && (
+              <div className="glass-panel p-6 text-center">
+                <div className="text-xs text-cyan-400 font-bold mb-2">GLOSA RECOMMENDED GLIDE SPEED</div>
+                <div className="text-6xl font-black font-display text-white">{ambulance.speed} <span className="text-xl text-slate-400 font-mono">km/h</span></div>
+              </div>
+            )}
+
+            {/* 5. Hospital ER View */}
+            {activeTab === 'er' && (
+              <div className="glass-panel p-6 border-red-500/40">
+                <div className="text-xs text-rose-400 font-bold">INCOMING CRITICAL TRAUMA PATIENT</div>
+                <div className="text-2xl font-bold text-white mt-1">CITY GENERAL HOSPITAL ER • BAY 02</div>
+              </div>
+            )}
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

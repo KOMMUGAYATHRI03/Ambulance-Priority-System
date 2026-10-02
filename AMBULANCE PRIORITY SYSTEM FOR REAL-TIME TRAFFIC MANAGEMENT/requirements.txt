@@ -1,0 +1,5 @@
+# Dependencies for Ambulance Priority System - Real-Time YOLOv8 Detection & ESP32 Module
+opencv-python>=4.8.0
+ultralytics>=8.0.0
+numpy>=1.24.0
+pyserial>=3.5
